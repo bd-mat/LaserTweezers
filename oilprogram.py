@@ -19,6 +19,14 @@ derr = c/2
 
 # FPS
 FPS = 310.1
+
+if FPS==310.1:
+    std = 0.6425
+else:
+    std = 0.485
+
+derr += c*std
+
 # viscosity values
 vx = 0.5647e-3
 vx_er = 0.2143e-3

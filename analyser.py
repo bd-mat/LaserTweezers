@@ -21,11 +21,20 @@ derr = c/2
 # radius
 R = 1.55e-6 # radius of bead, m
 FPS = 310.1
+
+if FPS==310.1:
+    std = 0.6425
+else:
+    std = 0.485
+
+derr += c*std
+
+# apply 
 # calculate cutoff
 cutoff = 1 # s
 N = int(cutoff*np.ceil(FPS))
 
-FILE1 = '40ma'
+FILE1 = '90'
 FILE2 = '_vals.csv'
 
 def random_walk(N):
