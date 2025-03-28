@@ -20,12 +20,12 @@ derr = c/2
 
 # radius
 R = 1.55e-6 # radius of bead, m
-FPS = 158.8
+FPS = 310.1
 # calculate cutoff
 cutoff = 1 # s
 N = int(cutoff*np.ceil(FPS))
 
-FILE1 = 'laser_90'
+FILE1 = '40ma'
 FILE2 = '_vals.csv'
 
 def random_walk(N):
@@ -73,8 +73,12 @@ def MSD(data,derr):
         unc[n] = unc[n]/(N-n)
     return MSD,unc
 
+def parabola(x,a):
+    return 0.5*a*(x**2)
+
 def potential(data,res):
     hist = np.histogram(data,bins=res)
+    print(res, "bins")
     hvals = np.array(hist[0])
     hvals = hvals/(hvals.max())
     xspac = np.array(hist[1])
@@ -89,11 +93,30 @@ def potential(data,res):
             U[i] = -(kB*T)*np.log(hvals[i])
     plt.plot(xavg,U)
     plt.show()
-    return hist
+    bvals = np.linspace(0,res,res)
+    plt.plot(bvals,U)
+    plt.show()
+    low = int(input("Input lower bound (bin index)"))
+    high = int(input("Input upper bound (bin index)"))
+    res = sp.optimize.curve_fit(parabola,xavg[low:high],U[low:high],p0=1e-06)
+    plt.plot(xavg[low:high],U[low:high],'xr')
+    fvals = parabola(xavg,res[0])
+    plt.plot(xavg[low:high],fvals[low:high])
+    plt.title("Potential vs x displacement")
+    plt.ylabel("U (J)")
+    plt.xlabel("x (m)")
+    fig = plt.gcf()
+    plt.show()
+    print("Kappa value:",res[0])
+    check = input("Save potential plot?")
+    if check == 'y':
+        fig.savefig(FILE1+"_potential_plot.png",dpi=300)
+    return xavg,hist
     
 
 def examplefunc(x,a):
     return a*x
+
 
 data = read_data(FILE1+FILE2)
 tvals = data[:,0]
@@ -114,7 +137,8 @@ ymean = np.mean(yvals)
 xvals = xvals - xmean
 yvals = yvals - ymean
 
-potential(xvals,100)
+resol = int(input("Number of bins:"))
+potential(xvals,resol)
 
 # find error on each value
 
@@ -122,13 +146,13 @@ check = input('Generate and save plots? (y for yes)')
 if check == 'y':
     savefigs(tvals,xvals,yvals,FILE1)
 
-xvar = np.var(xvals)
-yvar = np.var(yvals)
-
-K_x = (kB*T)/(xvar)
-K_y = (kB*T)/(yvar)
-
-print('K_x: ',K_x, " ----- K_y: ",K_y)
+check = input("Find kappa (old method)?")
+if check == 'y':
+    xvar = np.var(xvals)
+    yvar = np.var(yvals)
+    K_x = (kB*T)/(xvar)
+    K_y = (kB*T)/(yvar)
+    print('K_x: ',K_x, " ----- K_y: ",K_y)
 
 #  plot gaussian
 check = input('Plot gaussians?')
