@@ -27,6 +27,7 @@ if FPS==310.1:
 else:
     std = 0.485
 
+derr = np.sqrt(derr**2 + (c*std)**2)
 derr += c*std
 
 # apply 
@@ -34,7 +35,7 @@ derr += c*std
 cutoff = 1 # s
 N = int(cutoff*np.ceil(FPS))
 
-FILE1 = '90'
+FILE1 = 'brown2'
 FILE2 = '_vals.csv'
 
 def random_walk(N):
@@ -80,46 +81,57 @@ def MSD(data,derr):
             unc[n] += (2*np.sqrt(2)*derr)*np.sqrt(temp)
         MSD[n] = MSD[n]/(N-n)
         unc[n] = unc[n]/(N-n)
+        if n % 100 == 0:
+            print(str(int(100*n/(N-1)))+'% done.')
     return MSD,unc
 
 def parabola(x,a):
     return 0.5*a*(x**2)
 
-def potential(data,res):
+def potential(data,res,unc,lbl):
     hist = np.histogram(data,bins=res)
     print(res, "bins")
     hvals = np.array(hist[0])
-    hvals = hvals/(hvals.max())
+    hunc = np.sqrt(hvals)
+    maxval = hvals.max()
+    hvals = hvals/(maxval)
+    hunc = hunc/(maxval)
     xspac = np.array(hist[1])
     xavg = np.zeros_like(hvals)
     for i in range(0,res):
         xavg[i] = (xspac[i]+xspac[i+1])/2
     U = np.zeros(res,dtype=float)
+    Uunc = np.zeros_like(U)
     for i in range(0,res):
         if hvals[i]==0:
             pass
         else:
             U[i] = -(kB*T)*np.log(hvals[i])
+            Uunc[i] = (kB*T)*(hunc[i]/hvals[i])
     plt.plot(xavg,U)
     plt.show()
     bvals = np.linspace(0,res,res)
-    plt.plot(bvals,U)
+    plt.errorbar(bvals,U,Uunc)
     plt.show()
     low = int(input("Input lower bound (bin index)"))
     high = int(input("Input upper bound (bin index)"))
-    res = sp.optimize.curve_fit(parabola,xavg[low:high],U[low:high],p0=1e-06)
-    plt.plot(xavg[low:high],U[low:high],'xr')
+    res = sp.optimize.curve_fit(parabola,xavg[low:high],U[low:high],
+                                sigma=Uunc[low:high],absolute_sigma=True,p0=1e-06)
+    plt.errorbar(xavg[low:high],U[low:high],Uunc[low:high],fmt='xr')
     fvals = parabola(xavg,res[0])
+    kunc = np.sqrt(res[1])
     plt.plot(xavg[low:high],fvals[low:high])
-    plt.title("Potential vs x displacement")
+    plt.title("Potential vs "+lbl+" displacement")
     plt.ylabel("U (J)")
     plt.xlabel("x (m)")
     fig = plt.gcf()
+    #chi2 = sp.stats.chisquare(U[low:high],fvals[low:high],high-low-1)
     plt.show()
     print("Kappa value:",res[0])
+    print("Uncertainty:",kunc)
     check = input("Save potential plot?")
     if check == 'y':
-        fig.savefig(FILE1+"_potential_plot.png",dpi=300)
+        fig.savefig(FILE1+"_" + lbl + "potential.png",dpi=300)
     return xavg,hist
     
 
@@ -146,8 +158,11 @@ ymean = np.mean(yvals)
 xvals = xvals - xmean
 yvals = yvals - ymean
 
-resol = int(input("Number of bins:"))
-potential(xvals,resol)
+check = input('Run potential fitting?')
+if check == 'y':
+    resol = int(input("Number of bins:"))
+    potential(xvals,resol,derr,'x')
+    potential(yvals,resol,derr,'y')
 
 # find error on each value
 
@@ -188,6 +203,8 @@ if check == 'y':
 
 # now the real thing
 
+derr = c/2
+
 check = input('Calculate MSDs?')
 if check == 'y':
     
@@ -199,17 +216,16 @@ if check == 'y':
     unc_y = MSD_resy[1]
     
     tau = (1/FPS)*np.linspace(0,len(MSDx)-1,num=len(MSDx))
+    
 
-    plt.errorbar(tau[0:N],MSDx[0:N],unc_x[0:N])
-    plt.title('X MSD')
-    plt.xlabel(r'$\tau (s)$')
-    plt.ylabel('MSD (m^2)')
+    plt.plot(tau,MSDx)
     plt.show()
-    plt.errorbar(tau[0:N],MSDy[0:N],unc_y[0:N])
-    plt.title('Y MSD')
-    plt.xlabel(r'$\tau (s)$')
-    plt.ylabel('MSD (m^2)')
+    xcut = float(input("X cutoff? (in seconds)"))
+    Nx = int(xcut*np.ceil(FPS))
+    plt.plot(tau,MSDy)
     plt.show()
+    ycut = float(input("Y cutoff?"))
+    Ny = int(ycut*np.ceil(FPS))
     check2 = input('Save data?')
     if check2 == 'y':
         file = open(FILE1+'_MSD.csv','w')
@@ -229,8 +245,8 @@ if check =='y':
     # plt.show()
     
     # regress with error
-    resx = sp.optimize.curve_fit(examplefunc,tau[1:N],MSDx[1:N],sigma=unc_x[1:N],p0=3e-14,absolute_sigma=True)
-    resy = sp.optimize.curve_fit(examplefunc,tau[1:N],MSDy[1:N],sigma=unc_y[1:N],p0=3e-14,absolute_sigma=True)
+    resx = sp.optimize.curve_fit(examplefunc,tau[1:Nx],MSDx[1:Nx],sigma=unc_x[1:Nx],p0=3e-14,absolute_sigma=True)
+    resy = sp.optimize.curve_fit(examplefunc,tau[1:Ny],MSDy[1:Ny],sigma=unc_y[1:Ny],p0=3e-14,absolute_sigma=True)
     m_x = resx[0]
     m_y = resy[0]
     m_uncx = np.sqrt(resx[1])/m_x
@@ -253,8 +269,38 @@ if check =='y':
     m_x = (resx[0])
     m_y = (resy[0])
     """
+
     visc_x = (2*kB*T)/(3*np.pi*R*m_x)
     visc_y = (2*kB*T)/(3*np.pi*R*m_y)
     print('X Viscosity: ', visc_x*(1e3), ' pm ', m_uncx*visc_x*(1e3), 'mPa')
     print('Y Viscosity: ', visc_y*(1e3), ' pm ', m_uncy*visc_y*(1e3), 'mPa')
+    
+    fvalsx = examplefunc(tau,m_x)
+    fvalsy = examplefunc(tau,m_y)
+    
+    plt.plot(tau[0:Nx],MSDx[0:Nx],label='MSD')
+    plt.plot(tau[0:Nx],MSDx[0:Nx]+unc_x[0:Nx],'--k',label='Range of Uncertainty')
+    plt.plot(tau[0:Nx],MSDx[0:Nx]-unc_x[0:Nx],'--k')
+    plt.plot(tau[0:Nx],fvalsx[0:Nx],'r',label='Fit')
+    plt.legend()
+    plt.plot()
+    plt.title('X MSD')
+    plt.xlabel(r'$\tau (s)$')
+    plt.ylabel('MSD (m^2)')
+    xplot = plt.gcf()
+    plt.show()
+    plt.plot(tau[0:Ny],MSDy[0:Ny],label='MSD')
+    plt.plot(tau[0:Ny],MSDy[0:Ny]+unc_y[0:Ny],'--k',label='Range of Uncertainty')
+    plt.plot(tau[0:Ny],MSDy[0:Ny]-unc_y[0:Ny],'--k')
+    plt.plot(tau[0:Ny],fvalsy[0:Ny],'r',label='Fit')
+    plt.legend()
+    plt.title('Y MSD')
+    plt.xlabel(r'$\tau (s)$')
+    plt.ylabel('MSD (m^2)')
+    yplot = plt.gcf()
+    plt.show()
+    check1 = input('Save plots?')
+    if check1 == 'y':
+        xplot.savefig(FILE1+'_xMSD.png',dpi=300)
+        yplot.savefig(FILE1+'_yMSD.png',dpi=300)
     
